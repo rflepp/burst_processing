@@ -55,8 +55,9 @@ def generate_images(img_id):
     imageio.imsave(output_folder_png + "original/" + str(img_id) + ".png",
                    rgb_middle.postprocess(output_color=rawpy.ColorSpace.Adobe, use_camera_wb=True, no_auto_bright=False))
 
-    raw_image_uint16 = raw_middle.raw_image
-    imageio.imwrite(output_folder_raw + "original/" + str(img_id) + ".png", raw_image_uint16)
+    raw_middle_np = np.array(raw_middle.raw_image_visible)
+    normalized_mid_image = (raw_middle_np / raw_middle_np.max() * 65535).astype(np.uint16)
+    imageio.imwrite(output_folder_raw + "original/" + str(img_id) + ".png", normalized_mid_image)
 
     for i in range(0, burst_size):
         try:
@@ -67,22 +68,23 @@ def generate_images(img_id):
         raw_processed = raw
         processed_image = raw_processed.postprocess(output_color=rawpy.ColorSpace.Adobe, use_camera_wb=True, no_auto_bright=False)
         processed_images.append(processed_image)
-        raw_array = raw.raw_image
-        raw_avg.append(raw_array)
-        raw.close()
+
+        raw_avg.append(raw.raw_image_visible)
 
     mean_image = np.mean(processed_images, axis=0).astype(np.uint8)
     imageio.imwrite(output_folder_png + "denoised/" + str(img_id) + ".png", mean_image)
 
-    mean_raw = np.mean(raw_avg, axis=0).astype(np.uint16)
-    imageio.imwrite(output_folder_raw + "denoised/" + str(img_id) + ".png", mean_raw)
+    raw_avg = [np.array(image) for image in raw_avg]
+    mean_raw = np.mean(raw_avg, axis=0)
+    normalized_mean_image = (mean_raw / mean_raw.max() * 65535).astype(np.uint16)
+    imageio.imwrite(output_folder_raw + "denoised/" + str(img_id) + ".png", normalized_mean_image)
 
     print("Done image %d" % img_id)
 
 img_ids = np.asarray(sorted(img_ids))
 print(img_ids)
-start_index=np.where(img_ids == 368)[0][0]
-print("start_index",start_index)
-Parallel(n_jobs=2)(delayed(generate_images)(i) for i in sorted(img_ids[start_index:]))
+end_index=np.where(img_ids == 210)[0][0]
+print("start_index",end_index)
+Parallel(n_jobs=8)(delayed(generate_images)(i) for i in sorted(img_ids[:end_index]))
 
 # pixel 2 problems at: 572, 573
